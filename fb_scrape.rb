@@ -125,24 +125,32 @@ class FBScrapeCLI
       csv << COLUMNS
       pool = ThreadPool.new
       all_ids = Set.new
+      mutex = Mutex.new
 
       while line = STDIN.gets
         id = line.chomp
         unless all_ids.include?(id)
           all_ids << id
-
           pool.schedule(id) do |id|
+
             begin
-              fetch_post(id).each do |row|
-                csv << row
+              rows = fetch_post(id)
+              mutex.synchronize do
+                rows.each do |r|
+                  csv << r
+                end
               end
             rescue => ex
-              STDERR.puts "Error while fetching #{id}: #{ex.message}. Retrying in 5 minutes..."
-              sleep RETRY_TIME
-              retry
+              if ex.message.match(/limit/)
+                STDERR.puts "Rate limited while fetching #{id}: #{ex.message}. Retrying in 5 minutes..."
+                sleep RETRY_TIME
+                retry
+              else
+                STDERR.puts "Error while fetching #{id}: #{ex.message}. Ignoring..."
+              end
             end
-          end
 
+          end
         end
       end
 
