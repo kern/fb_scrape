@@ -3,6 +3,7 @@
 require 'csv'
 require 'json'
 require 'net/http'
+require 'set'
 require 'thread'
 
 if ENV['ACCESS_TOKEN'].nil?
@@ -123,19 +124,25 @@ class FBScrapeCLI
 
       csv << COLUMNS
       pool = ThreadPool.new
+      all_ids = Set.new
 
       while line = STDIN.gets
         id = line.chomp
-        pool.schedule(id) do |id|
-          begin
-            fetch_post(id).each do |row|
-              csv << row
+        unless all_ids.include?(id)
+          all_ids << id
+
+          pool.schedule(id) do |id|
+            begin
+              fetch_post(id).each do |row|
+                csv << row
+              end
+            rescue => ex
+              STDERR.puts "Error while fetching #{id}: #{ex.message}. Retrying in 5 minutes..."
+              sleep RETRY_TIME
+              retry
             end
-          rescue => ex
-            STDERR.puts "Error while fetching #{id}: #{ex.message}. Retrying in 5 minutes..."
-            sleep RETRY_TIME
-            retry
           end
+
         end
       end
 
