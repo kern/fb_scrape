@@ -42,4 +42,4 @@ Please use this software for good, not evil.
 
 ## License
 
-BSD 3-Clause
+[BSD 3-Clause](https://github.com/kern/fb_scrape/blob/master/LICENSE)
