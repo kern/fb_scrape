@@ -36,9 +36,9 @@ The CSV contains all of the scraped data in a consistent format. Data is written
 
 ## Precautions
 
-This scraper will make a hell of a lot of requests using your access token. Be wary that Facebook will inevitably rate limit you, but this is temporary and resets within an hour.
+This scraper will make a hell of a lot of requests using your access token. Be wary that Facebook will inevitably rate limit you, but this is temporary and resets within an hour. If the fetcher detects rate limiting, it will automatically retry the request in 5 minutes.
 
-If a user has blocked you, you will not be able to retrieve their posts and fetches will be retried endlessly. If all other posts that you care about have been fetched, it is safe to interrupt the task.
+If a user has blocked you, you will not be able to retrieve their posts and an error will be printed. These are safe to ignore.
 
 Please use this software for good, not evil.
 
