@@ -6,11 +6,6 @@ require 'net/http'
 require 'set'
 require 'thread'
 
-if ENV['ACCESS_TOKEN'].nil?
-  puts "You must specify a Facebook Graph API access token in ACCESS_TOKEN."
-  exit 1
-end
-
 class ThreadPool
 
   DEFAULT_POOL_SIZE = 100
@@ -45,7 +40,7 @@ end
 
 class FBScrapeCLI
 
-  COMMANDS = [:post_ids, :fetch, :help]
+  COMMANDS = [:post_ids, :fetch, :filter, :help]
   IDS_LIMIT = 1000
   RETRY_TIME = 5 * 60
   FIELDS = ['id', 'from', 'to', 'message', 'created_time', 'updated_time', 'type', 'picture', 'link', 'source', 'name', 'caption', 'description', 'comments.limit(10000)%7Bid,from,message,created_time,likes.limit(10000)%7D', 'likes.limit(10000)']
@@ -87,6 +82,8 @@ class FBScrapeCLI
   end
 
   def post_ids
+    require_access_token!
+
     if @args.length != 1
       puts "[usage] fb_scrape post_ids GROUP_ID"
       exit 1
@@ -120,6 +117,8 @@ class FBScrapeCLI
   end
 
   def fetch
+    require_access_token!
+
     CSV(STDOUT) do |csv|
 
       csv << COLUMNS
@@ -159,12 +158,44 @@ class FBScrapeCLI
     end
   end
 
+  def filter
+    if @args.length != 2
+      puts "[usage] fb_scrape filter FIELD REGEX"
+      exit 1
+    end
+
+    field = @args[0]
+    regex = Regexp.new(@args[1])
+
+    CSV(STDOUT) do |csv|
+      headers_written = false
+      input_csv = CSV.new(STDIN, headers: :first_row)
+      input_csv.each do |row|
+        unless headers_written
+          csv << input_csv.headers
+          headers_written = true
+        end
+
+        value = row[field]
+        if !value.nil? && regex.match(value)
+          csv << row
+        end
+      end
+    end
+  end
+
   def help
     puts "[usage] fb_scrape COMMAND [*ARGS]"
     puts "Supported commands: #{COMMANDS.join(' ')}"
   end
 
   private
+
+  def require_access_token!
+    if @access_token.nil?
+      raise "You must specify a Facebook Graph API access token in ACCESS_TOKEN."
+    end
+  end
 
   def fetch_post(id)
     graph_connection do |conn|
