@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'csv'
+require 'date'
 require 'json'
 require 'net/http'
 require 'set'
@@ -9,7 +10,7 @@ require 'thread'
 class ThreadPool
 
   DEFAULT_POOL_SIZE = 100
-  
+
   def initialize(size = DEFAULT_POOL_SIZE)
     @queue = Queue.new
     @threads = (0...size).map do
@@ -43,9 +44,10 @@ class FBScrapeCLI
   COMMANDS = [:post_ids, :fetch, :filter, :help]
   IDS_LIMIT = 1000
   RETRY_TIME = 5 * 60
-  FIELDS = ['id', 'from', 'to', 'message', 'created_time', 'updated_time', 'type', 'picture', 'link', 'source', 'name', 'caption', 'description', 'comments.limit(10000)%7Bid,from,message,created_time,likes.limit(10000)%7D', 'likes.limit(10000)']
+  FIELDS = ['id', 'from', 'to', 'message', 'created_time', 'updated_time', 'type', 'picture', 'link', 'source', 'name', 'caption', 'description', 'comments.limit(10000)%7Bid,from,message,created_time,likes.limit(10000),comments.limit(10000)%7Bid,from,message,created_time,likes.limit(10000)%7D%7D', 'likes.limit(10000)']
   COLUMNS = [
     :id,
+    :level,
     :from_id,
     :from_name,
     :group_id,
@@ -191,6 +193,14 @@ class FBScrapeCLI
 
   private
 
+  def normalize_date(date)
+    return nil unless date
+    DateTime.parse(date).strftime('%Y-%m-%d %H:%M:%S UTC')
+  rescue => ex
+    STDERR.puts "Error while normalizing date #{date}: #{ex.message}. Ignoring..."
+    nil
+  end
+
   def require_access_token!
     if @access_token.nil?
       raise "You must specify a Facebook Graph API access token in ACCESS_TOKEN."
@@ -215,13 +225,14 @@ class FBScrapeCLI
 
         rows = [{
           id: json['id'],
+          level: 0,
           from_id: json['from'] ? json['from']['id'] : nil,
           from_name: json['from'] ? json['from']['name'] : nil,
           group_id: group_id,
           group_name: group_name,
           message: json['message'],
-          created_time: json['created_time'],
-          updated_time: json['updated_time'],
+          created_time: normalize_date(json['created_time']),
+          updated_time: normalize_date(json['updated_time']),
           type: json['type'],
           picture: json['picture'],
           link: json['link'],
@@ -250,15 +261,17 @@ class FBScrapeCLI
         comments.each_with_index do |comment, index|
 
           likes = comment['likes'] ? comment['likes']['data'] : []
+          subcomments = comment['comments'] ? comment['comments']['data'] : []
 
           rows << {
             id: comment['id'],
+            level: 1,
             from_id: comment['from'] ? comment['from']['id'] : nil,
             from_name: comment['from'] ? comment['from']['name'] : nil,
             group_id: group_id,
             group_name: group_name,
             message: comment['message'],
-            created_time: comment['created_time'],
+            created_time: normalize_date(comment['created_time']),
             type: 'comment',
             like_count: likes.size,
             parent_id: json['id'],
@@ -276,6 +289,40 @@ class FBScrapeCLI
               parent_type: 'comment',
               type: 'like'
             }
+          end
+
+          subcomments.each_with_index do |subcomment, index|
+
+            likes = subcomment['likes'] ? subcomment['likes']['data'] : []
+
+            rows << {
+              id: subcomment['id'],
+              level: 2,
+              from_id: subcomment['from'] ? subcomment['from']['id'] : nil,
+              from_name: subcomment['from'] ? subcomment['from']['name'] : nil,
+              group_id: group_id,
+              group_name: group_name,
+              message: subcomment['message'],
+              created_time: normalize_date(subcomment['created_time']),
+              type: 'comment',
+              like_count: likes.size,
+              parent_id: comment['id'],
+              parent_type: 'comment',
+              comment_index: index
+            }
+
+            likes.each do |like|
+              rows << {
+                from_id: like['id'],
+                from_name: like['name'],
+                group_id: group_id,
+                group_name: group_name,
+                parent_id: subcomment['id'],
+                parent_type: 'comment',
+                type: 'like'
+              }
+            end
+
           end
 
         end
