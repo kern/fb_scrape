@@ -5,13 +5,13 @@ A simple scraper for Facebook Groups.
 ## Requirements
 
 * Ruby 2.x.x
-* A Facebook Graph API access token with the `user_groups` permission
+* A Facebook Graph API access token with the `user_managed_groups` permission
 
 ## Usage
 
 There are two steps to scraping posts. First, every original post's ID is gathered off the group's feed. Second, each post and all of its comments/likes are fetched in parallel and assembled into a single CSV.
 
-You'll need to export your Facebook Graph API access token as an environment variable. You can retrieve an access token with the `user_groups` permission from the [Graph API Explorer](https://developers.facebook.com/tools/explorer/).
+You'll need to export your Facebook Graph API access token as an environment variable. You can retrieve an access token with the `user_managed_groups` permission from the [Graph API Explorer](https://developers.facebook.com/tools/explorer/).
 
     $ export ACCESS_TOKEN=[ACCESS_TOKEN_GOES_HERE]
 
